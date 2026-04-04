@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跑团 Log 排版工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #1a1714;
+    --surface: #221f1b;
+    --surface2: #2a2620;
+    --border: #3d3730;
+    --accent: #c9a96e;
+    --accent2: #8b6f4a;
+    --text: #e8ddd0;
+    --text-dim: #9a8f82;
+    --narration: #b8a898;
+
+    /* 角色颜色 */
+    --c1: #7eb8a4;
+    --c2: #e07b5a;
+    --c3: #9b84c4;
+    --c4: #5a9fd4;
+    --c5: #d4a84b;
+    --c6: #c47a7a;
+    --dice: #6aaa6a;
+    --kp: #c9a96e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 {
+    font-family: 'Noto Serif SC', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  header span {
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 73px);
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .panel-header h2 {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  textarea {
+    flex: 1;
+    background: var(--bg);
+    color: var(--text);
+    border: none;
+    outline: none;
+    padding: 20px;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    line-height: 1.8;
+    resize: none;
+    overflow-y: auto;
+  }
+  textarea::placeholder { color: var(--text-dim); }
+
+  .preview-panel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .preview-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    background: var(--bg);
+  }
+  .preview-scroll::-webkit-scrollbar { width: 6px; }
+  .preview-scroll::-webkit-scrollbar-track { background: transparent; }
+  .preview-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* 预览行样式 */
+  .preview-empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+    margin-top: 60px;
+    line-height: 2;
+  }
+
+  .log-line {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0 16px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.8;
+    align-items: start;
+  }
+  .log-line .speaker {
+    font-weight: 600;
+    text-align: right;
+    padding-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .log-line .content { color: var(--text); }
+
+  .log-narration {
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--narration);
+    padding: 6px 0 6px 16px;
+    border-left: 2px solid var(--border);
+  }
+
+  .log-dice {
+    margin-bottom: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--dice);
+    padding: 4px 12px;
+    background: rgba(106, 170, 106, 0.06);
+    border-radius: 4px;
+    border-left: 2px solid var(--dice);
+    opacity: 0.85;
+  }
+  .log-dice .dice-bot { color: var(--text-dim); font-size: 11px; }
+
+  /* 角色颜色分配 */
+  .color-0 { color: var(--c1); }
+  .color-1 { color: var(--c2); }
+  .color-2 { color: var(--c3); }
+  .color-3 { color: var(--c4); }
+  .color-4 { color: var(--c5); }
+  .color-5 { color: var(--c6); }
+  .color-kp { color: var(--kp); }
+
+  /* 底部工具栏 */
+  .toolbar {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .title-input {
+    flex: 1;
+    min-width: 160px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+  }
+  .title-input:focus { border-color: var(--accent2); }
+  .title-input::placeholder { color: var(--text-dim); }
+
+  .btn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: none;
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--accent2); }
+  .btn-primary {
+    background: var(--accent);
+    color: #1a1714;
+    font-weight: 600;
+  }
+  .btn-primary:hover { background: #d4b47a; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 角色颜色设置 */
+  .char-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 0 20px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .char-tag {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .char-tag:hover { opacity: 0.8; }
+  .tag-label { font-family: 'Noto Sans SC', sans-serif; }
+
+  .stats {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .kp-badge {
+    font-size: 10px;
+    background: var(--accent2);
+    color: #1a1714;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>跑团 Log 排版工具</h1>
+  <span>支持骰子导出格式 · 生成 Word 文档</span>
+</header>
+
+<div class="workspace">
+  <!-- 左：输入 -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>原始 Log</h2>
+      <button class="btn btn-ghost" onclick="loadSample()" style="font-size:11px;padding:4px 10px;">载入示例</button>
+    </div>
+    <textarea id="input" placeholder="将骰子导出的 log 粘贴到这里…
+
+支持格式：
+&lt;角色名&gt;:发言内容
+&lt;Abyss...&gt;:骰点结果（自动识别为骰子行）
+没有尖括号的行视为 KP 旁白" oninput="parse()"></textarea>
+  </div>
+
+  <!-- 右：预览 -->
+  <div class="preview-panel">
+    <div class="panel-header">
+      <h2>预览</h2>
+      <span class="stats" id="stats"></span>
+    </div>
+    <div class="char-tags" id="charTags"></div>
+    <div class="preview-scroll" id="preview">
+      <div class="preview-empty">← 粘贴 log 后这里会实时显示排版预览</div>
+    </div>
+    <div class="toolbar">
+      <input class="title-input" id="docTitle" placeholder="文档标题（可选，如：第二日——科考队营地）">
+      <button class="btn btn-ghost" onclick="copyMarkdown()">复制 Obsidian 格式</button>
+      <button class="btn btn-primary" id="dlBtn" onclick="downloadDocx()" disabled>下载 Word 文档</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── 状态 ───────────────────────────────────────────────────────────
+const COLORS_CSS = ['color-0','color-1','color-2','color-3','color-4','color-5'];
+const COLORS_HEX = ['7eb8a4','e07b5a','9b84c4','5a9fd4','d4a84b','c47a7a'];
+const DICE_HEX   = '6aaa6a';
+const KP_HEX     = 'c9a96e';
+const NARR_HEX   = 'b8a898';
+
+// 骰子机器人名字特征
+const DICE_BOT_RE = /^Abyss|骰子机器人|DiceBot|^bot$/i;
+
+let charMap = {};   // name -> colorIndex
+let charOrder = []; // 出场顺序
+let parsed = [];    // 解析结果
+
+// ─── 解析 ───────────────────────────────────────────────────────────
+function parseLine(raw) {
+  const m = raw.match(/^<([^>]+)>:([\s\S]*)$/);
+  if (m) {
+    const name = m[1].trim();
+    const content = m[2].trim();
+    const isDice = DICE_BOT_RE.test(name);
+    return { type: isDice ? 'dice' : 'speech', name, content };
+  }
+  const stripped = raw.trim();
+  if (stripped) return { type: 'continuation', content: stripped };
+  return null;
+}
+
+function assignColor(name) {
+  if (!(name in charMap)) {
+    charMap[name] = charOrder.length % COLORS_CSS.length;
+    charOrder.push(name);
+  }
+  return charMap[name];
+}
+
+function parse() {
+  const raw = document.getElementById('input').value;
+  if (!raw.trim()) {
+    document.getElementById('preview').innerHTML =
+      '<div class="preview-empty">← 粘贴 log 后这里会实时显示排版预览</div>';
+    document.getElementById('charTags').innerHTML = '';
+    document.getElementById('stats').textContent = '';
+    document.getElementById('dlBtn').disabled = true;
+    parsed = [];
+    return;
+  }
+
+  charMap = {}; charOrder = [];
+  const lines = raw.split('\n');
+  parsed = lines.map(parseLine).filter(Boolean);
+
+  // 颜色分配（跳过骰子机器人）
+  parsed.forEach(l => { if (l.type === 'speech') assignColor(l.name); });
+
+  // 合并续行：把 continuation 并入上一条 speech/dice 的 content
+  const merged = [];
+  for (const l of parsed) {
+    if (l.type === 'continuation') {
+      // 找到最近一条可以附加内容的行
+      const prev = [...merged].reverse().find(x => x.type === 'speech' || x.type === 'dice');
+      if (prev) {
+        prev.content += '\n' + l.content;
+      } else {
+        // 没有前一个说话人就当旁白兜底
+        merged.push({ type: 'narration', content: l.content });
+      }
+    } else {
+      merged.push(l);
+    }
+  }
+  parsed = merged;
+
+  renderPreview();
+  renderCharTags();
+  updateStats();
+  document.getElementById('dlBtn').disabled = false;
+}
+
+// ─── 预览渲染 ───────────────────────────────────────────────────────
+function renderPreview() {
+  const container = document.getElementById('preview');
+  container.innerHTML = parsed.map(renderLineHTML).join('');
+}
+
+function renderLineHTML(l) {
+  if (l.type === 'narration') {
+    return `<div class="log-narration">${esc(l.content)}</div>`;
+  }
+  if (l.type === 'dice') {
+    return `<div class="log-dice"><span class="dice-bot">[${esc(l.name)}]</span> ${esc(l.content)}</div>`;
+  }
+  // speech
+  const ci = charMap[l.name];
+  const cc = COLORS_CSS[ci];
+  const contentHtml = esc(l.content).replace(/\n/g, '<br>');
+  return `<div class="log-line">
+    <span class="speaker ${cc}">${esc(l.name)}</span>
+    <span class="content ${cc}">${contentHtml}</span>
+  </div>`;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── 角色标签 ───────────────────────────────────────────────────────
+function renderCharTags() {
+  const container = document.getElementById('charTags');
+  if (charOrder.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = charOrder.map(name => {
+    const ci = charMap[name];
+    const hex = COLORS_HEX[ci];
+    return `<div class="char-tag" style="color:#${hex};border-color:#${hex}40;background:#${hex}12">
+      <span class="tag-label">${esc(name)}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateStats() {
+  const speech = parsed.filter(l=>l.type==='speech').length;
+  const narr   = parsed.filter(l=>l.type==='narration').length;
+  const dice   = parsed.filter(l=>l.type==='dice').length;
+  document.getElementById('stats').textContent =
+    `${speech} 条对话  ${narr} 条旁白  ${dice} 条骰点`;
+}
+
+// ─── 复制 Obsidian Markdown ─────────────────────────────────────────
+const CALLOUT_NAMES = ['trpg-pc1','trpg-pc2','trpg-pc3','trpg-pc4','trpg-pc5','trpg-pc6'];
+
+function copyMarkdown() {
+  const title = document.getElementById('docTitle').value.trim();
+  let md = '';
+  if (title) md += `<span class="trpg-title">${title}</span>\n\n`;
+  md += parsed.map(l => {
+    if (l.type === 'narration') return `> [!trpg-npc] 守秘人\n> ${l.content}\n`;
+    if (l.type === 'dice') return `> [!trpg-dice] 骰点\n> ${l.content}\n`;
+    const ci = charMap[l.name];
+    const callout = CALLOUT_NAMES[ci] || 'trpg-pc1';
+    return `> [!${callout}] ${l.name}\n> ${l.content}\n`;
+  }).join('\n');
+  navigator.clipboard.writeText(md).then(() => {
+    const btn = document.querySelector('.btn-ghost');
+    const orig = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// ─── 生成 Word ──────────────────────────────────────────────────────
+async function downloadDocx() {
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          AlignmentType, WidthType, BorderStyle, ShadingType, VerticalAlign } = docx;
+
+  const title = document.getElementById('docTitle').value.trim();
+  const children = [];
+
+  // 标题段落
+  if (title) {
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 240 },
+      border: {
+        top:    { style: BorderStyle.SINGLE, size: 6, color: '8b6f4a' },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: '8b6f4a' },
+        left:   { style: BorderStyle.SINGLE, size: 6, color: '8b6f4a' },
+        right:  { style: BorderStyle.SINGLE, size: 6, color: '8b6f4a' },
+      },
+      children: [new TextRun({ text: title, bold: true, size: 28, font: '宋体', color: '2c1f0f' })]
+    }));
+  }
+
+  // 内容宽度 A4 - 2.54cm*2边 ≈ 8504 DXA
+  const TOTAL_W = 8504;
+  const COL1 = 1600; // 角色名列
+  const COL2 = TOTAL_W - COL1;
+  const cellBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+  const noBorders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
+
+  for (const l of parsed) {
+    // ── 旁白 ──
+    if (l.type === 'narration') {
+      children.push(new Paragraph({
+        spacing: { before: 60, after: 60 },
+        indent: { left: 200 },
+        children: [new TextRun({ text: l.content, size: 22, font: '宋体', color: '6b5f52' })]
+      }));
+      continue;
+    }
+
+    // ── 骰点 ──
+    if (l.type === 'dice') {
+      children.push(new Paragraph({
+        spacing: { before: 40, after: 40 },
+        indent: { left: 200 },
+        children: [
+          new TextRun({ text: `[${l.name}] `, size: 18, font: '宋体', color: '888888' }),
+          new TextRun({ text: l.content, size: 20, font: '宋体', color: '4a8a4a' }),
+        ]
+      }));
+      continue;
+    }
+
+    // ── 对话（两列表格行） ──
+    const ci = charMap[l.name];
+    const nameColor = COLORS_HEX[ci] || '888888';
+    // 内容颜色略深一点用于可读性
+    const contentColor = nameColor;
+
+    children.push(new Table({
+      width: { size: TOTAL_W, type: WidthType.DXA },
+      columnWidths: [COL1, COL2],
+      borders: { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder,
+                 insideH: cellBorder, insideV: cellBorder },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: COL1, type: WidthType.DXA },
+              borders: noBorders,
+              margins: { top: 40, bottom: 40, left: 0, right: 160 },
+              verticalAlign: VerticalAlign.TOP,
+              children: [new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({
+                  text: l.name, bold: true, size: 22, font: '宋体', color: nameColor
+                })]
+              })]
+            }),
+            new TableCell({
+              width: { size: COL2, type: WidthType.DXA },
+              borders: noBorders,
+              margins: { top: 40, bottom: 40, left: 80, right: 0 },
+              children: l.content.split('\n').map(line => new Paragraph({
+                children: [new TextRun({
+                  text: line, size: 22, font: '宋体', color: contentColor
+                })]
+              }))
+            }),
+          ]
+        })
+      ]
+    }));
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 11906, height: 16838 }, // A4
+          margin: { top: 1418, right: 1418, bottom: 1418, left: 1418 }
+        }
+      },
+      children
+    }]
+  });
+
+  const buf = await Packer.toBuffer(doc);
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (title || '跑团log') + '.docx';
+  a.click();
+}
+
+// ─── 示例数据 ───────────────────────────────────────────────────────
+function loadSample() {
+  document.getElementById('input').value =
+`<无限流河>:然后那男子眼睛一闭，就死去了。
+<约书亚·沃特金斯>:"这……"看着人在面前死去还是第一次，在浓雾弥漫的街道上，寒意好像已经渗入骨髓，最后也只能叹口气。
+不能让他就在这里躺着，我把手帕盖在他的脸上，回旅馆喊人。在路上，思考着那句遗言……
+<约书亚·沃特金斯>:.ra 法语
+<Abyss（元梦之星版）>:曾为流动的深渊包裹，<约书亚·沃特金斯>的"法语"结果显露:
+D100=83/36 ●失败
+Abyss全身的毛炸起，它见到了可怖、无法理解、无法摆脱的绿色长条物体。`;
+  parse();
+}
+</script>
+</body>
+</html>
