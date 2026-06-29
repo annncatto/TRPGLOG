@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { ParsedLine } from './parser'
 import { resolveCharColorHex } from './parser'
-import { SPEAKER_FONT_PRESET } from './fontPresets'
 import { displayNameForChar, speechContentStartsWithFullwidthParen } from './docxExportHelpers'
 
 export type TitleAlign = 'left' | 'center' | 'right'
@@ -63,8 +62,16 @@ type PreviewProps = {
   charMap: Record<string, number>
   charColorOverrides: Record<string, string>
   bodyFontCss: string
+  /** 角色名 CSS 字体栈 */
+  speakerFontCss: string
+  /** 是否给角色名加 < > */
+  speakerBrackets: boolean
   /** 正文主字号（磅），与导出 Word 一致 */
   bodyFontSizePt: number
+  /** 骰点行字体、字号、颜色（预览与导出一致） */
+  diceFontCss: string
+  diceFontSizePt: number
+  diceColor: string
   titleStyle: TitleStyle
   insertedTitles: InsertedTitle[]
   backgroundBlocks: BackgroundBlock[]
@@ -101,7 +108,12 @@ export function Preview({
   charMap,
   charColorOverrides,
   bodyFontCss,
+  speakerFontCss,
+  speakerBrackets,
   bodyFontSizePt,
+  diceFontCss,
+  diceFontSizePt,
+  diceColor,
   titleStyle,
   insertedTitles,
   backgroundBlocks,
@@ -169,7 +181,12 @@ export function Preview({
                       charMap,
                       charColorOverrides,
                       bodyFontCss,
+                      speakerFontCss,
+                      speakerBrackets,
                       bodyFontSizePt,
+                      diceFontCss,
+                      diceFontSizePt,
+                      diceColor,
                       charDisplayNames,
                       parensSpeechRightAlign,
                     )}
@@ -198,13 +215,17 @@ function renderLine(
   charMap: Record<string, number>,
   charColorOverrides: Record<string, string>,
   bodyFontCss: string,
+  speakerFontCss: string,
+  speakerBrackets: boolean,
   bodyFontSizePt: number,
+  diceFontCss: string,
+  diceFontSizePt: number,
+  diceColor: string,
   charDisplayNames: Record<string, string>,
   parensSpeechRightAlign: boolean,
 ) {
   const bodyPx = ptToCssPx(bodyFontSizePt)
-  const diceBotPx = ptToCssPx((bodyFontSizePt * 9) / 11)
-  const diceContentPx = ptToCssPx((bodyFontSizePt * 10) / 11)
+  const dicePx = ptToCssPx(diceFontSizePt)
 
   if (l.type === 'narration') {
     return (
@@ -216,8 +237,17 @@ function renderLine(
   const shownName = displayNameForChar(l.name, charDisplayNames)
   if (l.type === 'dice') {
     return (
-      <div className="log-dice" style={{ fontFamily: bodyFontCss, fontSize: `${diceContentPx}px` }}>
-        <span className="dice-bot" style={{ fontSize: `${diceBotPx}px` }}>
+      <div
+        className="log-dice"
+        style={{
+          fontFamily: diceFontCss,
+          fontSize: `${dicePx}px`,
+          color: diceColor,
+          borderLeftColor: diceColor,
+          backgroundColor: `${diceColor}14`,
+        }}
+      >
+        <span className="dice-bot" style={{ color: diceColor, fontSize: `${dicePx}px` }}>
           [{esc(shownName)}]
         </span>{' '}
         <span>{esc(l.content)}</span>
@@ -239,11 +269,11 @@ function renderLine(
         className="speaker"
         style={{
           color,
-          fontFamily: SPEAKER_FONT_PRESET.cssStack,
+          fontFamily: speakerFontCss,
         }}
         title={shownName !== l.name ? l.name : undefined}
       >
-        {esc(shownName)}
+        {esc(speakerBrackets ? `<${shownName}>` : shownName)}
       </span>
       <span
         className={`content${contentRight ? ' log-line-content-parens-right' : ''}`}

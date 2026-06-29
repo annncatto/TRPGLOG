@@ -4,25 +4,25 @@
 .app-trpg {
   --bg: #ffffff;
   --surface: #ffffff;
-  --surface2: #f3f4f6;
-  --border: #e5e7eb;
-  --accent: #39b60f;
-  --accent2: #68d237;
-  --accent-muted: rgba(138, 92, 245, 0.12);
-  --text: #1f2937;
-  --text-dim: #6b7280;
-  --narration: #4b5563;
+  --surface2: #e9e9f4;
+  --border: #cfcfe6;
+  --accent: #4a4a8b;
+  --accent2: #9cabc9;
+  --accent-muted: rgba(74, 80, 139, 0.12);
+  --text: #2c241a;
+  --text-dim: #64708a;
+  --narration: #52546b;
   --c1: #059669;
   --c2: #dc2626;
   --c3: #7c3aed;
   --c4: #2563eb;
   --c5: #d97706;
   --c6: #db2777;
-  --dice: #16a34a;
-  --kp: #8a5cf5;
-  --btn-primary-bg: #8a5cf5;
+  --dice: #4a8a4a;
+  --kp: #4a4e8b;
+  --btn-primary-bg: #4a648b;
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: #7c4fe0;
+  --btn-primary-hover: #3b4375;
 
   background: var(--bg);
   color: var(--text);
@@ -1029,7 +1029,7 @@
 .app-trpg .preview-doc-title {
   font-family: 'Noto Serif SC', serif;
   font-weight: 700;
-  color: var(--accent);
+  color: #2c1f0f;
   margin-bottom: 20px;
   line-height: 1.35;
 }
@@ -1065,8 +1065,8 @@
 
 .app-trpg .log-line {
   display: grid;
-  grid-template-columns: minmax(96px, 180px) minmax(0, 1fr);
-  column-gap: 32px;
+  grid-template-columns: minmax(56px, 120px) minmax(0, 1fr);
+  column-gap: 14px;
   margin-bottom: 6px;
   font-size: 13px;
   line-height: 1.8;

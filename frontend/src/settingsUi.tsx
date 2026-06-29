@@ -77,9 +77,18 @@ export function IconDice() {
 
 export function IconTitle() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M4 6h16M10 6v14M4 20h6" />
-    </svg>
+    <span
+      aria-hidden
+      style={{
+        fontSize: 16,
+        fontWeight: 700,
+        lineHeight: 1,
+        fontFamily: '"SimSun", "Noto Serif SC", serif',
+        userSelect: 'none',
+      }}
+    >
+      标
+    </span>
   )
 }
 
@@ -125,8 +134,18 @@ type PanelCommon = {
   setTitleStyle: Dispatch<SetStateAction<TitleStyle>>
   bodyFontId: string
   setBodyFontId: (id: string) => void
+  speakerFontId: string
+  setSpeakerFontId: (id: string) => void
+  speakerBrackets: boolean
+  setSpeakerBrackets: Dispatch<SetStateAction<boolean>>
   bodyFontSizePt: number
   setBodyFontSizePt: Dispatch<SetStateAction<number>>
+  diceFontId: string
+  setDiceFontId: (id: string) => void
+  diceFontSizePt: number
+  setDiceFontSizePt: Dispatch<SetStateAction<number>>
+  diceColor: string
+  setDiceColor: Dispatch<SetStateAction<string>>
   charOrder: string[]
   charMap: Record<string, number>
   charColorOverrides: Record<string, string>
@@ -157,6 +176,8 @@ type PanelCommon = {
   setDocxPageLayout: Dispatch<SetStateAction<DocxPageLayout>>
   parensSpeechRightAlign: boolean
   setParensSpeechRightAlign: Dispatch<SetStateAction<boolean>>
+  exportFileName: string
+  setExportFileName: Dispatch<SetStateAction<string>>
   fileRef: RefObject<HTMLInputElement | null>
   onPickFile: (e: React.ChangeEvent<HTMLInputElement>) => void
   loadSample: () => void
@@ -167,8 +188,8 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
     case 'file':
       return (
         <div className="control-body settings-tool-body">
-          <p className="hint">支持 .txt、.log、.docx；.doc 需 Windows 本机 Word + 后端 pywin32。</p>
-          <input ref={p.fileRef} type="file" accept=".txt,.log,.docx,.doc" hidden onChange={p.onPickFile} />
+          <p className="hint">支持 .txt、.docx；旧版 .doc 请先在 Word 中另存为 .docx。</p>
+          <input ref={p.fileRef} type="file" accept=".txt,.docx" hidden onChange={p.onPickFile} />
           <div className="settings-tool-actions">
             <button type="button" className="btn btn-primary" onClick={() => p.fileRef.current?.click()}>
               导入文件
@@ -384,7 +405,7 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
               <div key={t.id} className="image-item title-row-with-num" style={{ flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="如：第一日 · 营地"
+                  placeholder="如：第一日"
                   value={t.text}
                   onChange={(e) => p.updateSectionTitle(t.id, { text: e.target.value })}
                   className="settings-flex-input"
@@ -466,6 +487,24 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
             </select>
           </div>
           <div className="field-row">
+            <label>角色名字体</label>
+            <select value={p.speakerFontId} onChange={(e) => p.setSpeakerFontId(e.target.value)} className="settings-select settings-select-grow">
+              {FONT_PRESETS.map((fp) => (
+                <option key={fp.id} value={fp.id}>
+                  {fp.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={p.speakerBrackets}
+              onChange={(e) => p.setSpeakerBrackets(e.target.checked)}
+            />
+            给角色名加上 &lt; &gt;（如 &lt;凯&gt;，预览与导出一致）
+          </label>
+          <div className="field-row">
             <label htmlFor="body-font-size-pt">正文字号（磅）</label>
             <input
               id="body-font-size-pt"
@@ -484,8 +523,44 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
             />
           </div>
           <p id="body-font-size-hint" className="hint" style={{ marginTop: 0 }}>
-            预览与导出 Word 的正文、对话、角色名一致；骰点行略小（相对 11 磅比例不变）。
+            预览与导出 Word 的正文、对话、角色名一致。
           </p>
+          <div className="field-row">
+            <label>骰点字体</label>
+            <select value={p.diceFontId} onChange={(e) => p.setDiceFontId(e.target.value)} className="settings-select settings-select-grow">
+              {FONT_PRESETS.map((fp) => (
+                <option key={fp.id} value={fp.id}>
+                  {fp.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-row">
+            <label htmlFor="dice-font-size-pt">骰点字号（磅）</label>
+            <input
+              id="dice-font-size-pt"
+              type="number"
+              min={6}
+              max={36}
+              step={0.5}
+              value={p.diceFontSizePt}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (!Number.isFinite(n)) return
+                p.setDiceFontSizePt(Math.max(6, Math.min(36, n)))
+              }}
+              style={{ width: 72 }}
+            />
+          </div>
+          <div className="field-row">
+            <label>骰点颜色</label>
+            <input
+              type="color"
+              value={p.diceColor}
+              onChange={(e) => p.setDiceColor(e.target.value)}
+              aria-label="骰点颜色"
+            />
+          </div>
           {p.charOrder.length === 0 ? (
             <p className="hint">解析 log 后出现对话角色，可在此改颜色。</p>
           ) : (
@@ -544,7 +619,7 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
                     p.updateBgBlock(b.id, { end: bgDisplayLineToIndex(Number(e.target.value), p.lineCount) })
                   }
                 />
-                <input type="color" value={b.color.length === 7 ? b.color : '#5a4a3a'} onChange={(e) => p.updateBgBlock(b.id, { color: e.target.value })} />
+                <input type="color" value={b.color.length === 7 ? b.color : '#cccccc'} onChange={(e) => p.updateBgBlock(b.id, { color: e.target.value })} />
                 <button type="button" className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => p.removeBgBlock(b.id)}>
                   删
                 </button>
@@ -556,7 +631,7 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
     case 'export':
       return (
         <div className="control-body settings-tool-body">
-          <p className="hint">生成与预览一致的 .docx；请先在本机启动后端（uvicorn）。页边距与行距仅作用于 Word 导出。</p>
+          <p className="hint">在浏览器中直接生成与预览一致的 .docx，无需后端。页边距与行距仅作用于 Word 导出。</p>
           <div className="export-layout-grid">
             <span className="hint export-layout-label">页边距（mm）</span>
             <label className="export-layout-field">
@@ -633,6 +708,18 @@ export function SettingsToolBody({ tool, p }: { tool: SettingsToolId; p: PanelCo
             />
             将以「（」开头的发言正文右对齐（预览与导出一致）
           </label>
+          <div className="field-row" style={{ marginTop: 10 }}>
+            <label htmlFor="export-file-name">文件名</label>
+            <input
+              id="export-file-name"
+              type="text"
+              className="settings-flex-input"
+              placeholder="留空则用首个标题，否则「跑团log」"
+              value={p.exportFileName}
+              onChange={(e) => p.setExportFileName(e.target.value)}
+            />
+            <span className="hint" style={{ margin: 0 }}>.docx</span>
+          </div>
           <button
             type="button"
             className="btn btn-primary settings-export-btn"

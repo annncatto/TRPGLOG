@@ -1,0 +1,5 @@
+fastapi>=0.115.0
+python-docx>=1.1.0
+pydantic>=2.0.0
+# 仅本地开发需要（Vercel 由平台提供 ASGI 运行时）：
+uvicorn[standard]>=0.32.0

@@ -1,18 +1,19 @@
 from typing import Literal, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from export_docx import build_docx_bytes
-from extract_text import extract_from_upload
 
 app = FastAPI(title="TRPG Log Export")
+# 前端与 API 同域部署（Vercel），生产环境无需跨域；这里保持宽松以便本地/预览调试。
+# 注意：不要同时启用 allow_credentials=True 与通配 origin（浏览器会拒绝），本项目也不使用凭证。
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,19 +75,7 @@ class ExportPayload(BaseModel):
     parensSpeechRightAlign: bool = False
 
 
-@app.post("/extract-text")
-async def extract_text(file: UploadFile = File(...)) -> dict[str, str]:
-    try:
-        raw = await file.read()
-        if not raw:
-            raise ValueError("空文件")
-        text = extract_from_upload(file.filename or "", raw)
-        return {"text": text}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@app.post("/export")
+@app.post("/api/export")
 def export_docx(body: ExportPayload) -> Response:
     raw = build_docx_bytes(body.model_dump())
     return Response(
@@ -95,6 +84,6 @@ def export_docx(body: ExportPayload) -> Response:
     )
 
 
-@app.get("/health")
+@app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}

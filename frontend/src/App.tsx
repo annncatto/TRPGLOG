@@ -59,7 +59,7 @@ const LOG_PLACEHOLDER = `将骰子导出的 log 粘贴到这里…
 
 多份 Log：非主 Log 在编辑窗拖选文字后制作为插入块（按字符，非换行显示）；每份可开独立浮窗。预览与导出 = 合并结果。
 
-导入：.txt / .docx / .doc（.doc 需 Windows + Word + pywin32）`
+导入：.txt / .docx（旧版 .doc 请先另存为 .docx）`
 
 export default function App() {
   const initLogUi = useMemo(() => {
@@ -84,13 +84,19 @@ export default function App() {
   const [insertedTitles, setInsertedTitles] = useState<InsertedTitle[]>([])
   const [backgroundBlocks, setBackgroundBlocks] = useState<BackgroundBlock[]>([])
   const [bodyFontId, setBodyFontId] = useState(DEFAULT_BODY_FONT_ID)
+  const [speakerFontId, setSpeakerFontId] = useState(SPEAKER_FONT_PRESET.id)
+  const [speakerBrackets, setSpeakerBrackets] = useState(false)
   const [bodyFontSizePt, setBodyFontSizePt] = useState(11)
+  const [diceFontId, setDiceFontId] = useState(DEFAULT_BODY_FONT_ID)
+  const [diceFontSizePt, setDiceFontSizePt] = useState(10)
+  const [diceColor, setDiceColor] = useState('#4a8a4a')
   const [charColorOverrides, setCharColorOverrides] = useState<Record<string, string>>({})
   const [diceExactNames, setDiceExactNames] = useState<string[]>([])
   const [diceCustomInput, setDiceCustomInput] = useState('')
   const [charDisplayNames, setCharDisplayNames] = useState<Record<string, string>>({})
   const [docxPageLayout, setDocxPageLayout] = useState<DocxPageLayout>(() => ({ ...DEFAULT_DOCX_PAGE_LAYOUT }))
   const [parensSpeechRightAlign, setParensSpeechRightAlign] = useState(false)
+  const [exportFileName, setExportFileName] = useState('')
   const [exporting, setExporting] = useState(false)
   /** 预览/导出中隐藏的解析行（0-based）；合并 log 变更时重置 */
   const [hiddenLineIndices, setHiddenLineIndices] = useState(() => new Set<number>())
@@ -121,7 +127,14 @@ export default function App() {
   }, [])
 
   const bodyFontCss = useMemo(() => getFontPresetById(bodyFontId).cssStack, [bodyFontId])
+  const speakerFontCss = useMemo(() => getFontPresetById(speakerFontId).cssStack, [speakerFontId])
   const bodyFontSizePtClamped = useMemo(() => clamp(bodyFontSizePt, 6, 36), [bodyFontSizePt])
+  const diceFontCss = useMemo(() => getFontPresetById(diceFontId).cssStack, [diceFontId])
+  const diceFontSizePtClamped = useMemo(() => clamp(diceFontSizePt, 6, 36), [diceFontSizePt])
+  const diceColorSafe = useMemo(
+    () => (/^#[0-9A-Fa-f]{6}$/.test(diceColor.trim()) ? diceColor.trim() : '#4a8a4a'),
+    [diceColor],
+  )
 
   const diceConfig: DiceSpeakerConfig = useMemo(
     () => ({ exactNames: diceExactNames }),
@@ -279,30 +292,17 @@ export default function App() {
       const baseLabel = stripFileBaseName(f.name)
       let text = ''
       try {
-        if (name.endsWith('.txt') || name.endsWith('.log')) {
+        if (name.endsWith('.txt')) {
           text = await f.text()
         } else if (name.endsWith('.docx')) {
           const buf = await f.arrayBuffer()
           const { value } = await mammoth.extractRawText({ arrayBuffer: buf })
           text = value
         } else if (name.endsWith('.doc')) {
-          const fd = new FormData()
-          fd.append('file', f)
-          const r = await fetch('/api/extract-text', { method: 'POST', body: fd })
-          if (!r.ok) {
-            let msg = r.statusText
-            try {
-              const j = (await r.json()) as { detail?: string }
-              if (typeof j.detail === 'string') msg = j.detail
-            } catch {
-              /* ignore */
-            }
-            throw new Error(msg)
-          }
-          const j = (await r.json()) as { text?: string }
-          text = j.text ?? ''
+          alert('暂不支持旧版 .doc 格式，请在 Word 中另存为 .docx 后再导入。')
+          return
         } else {
-          alert('请上传 .txt、.docx 或 .doc 文件')
+          alert('请上传 .txt 或 .docx 文件')
           return
         }
       } catch (err) {
@@ -348,7 +348,7 @@ export default function App() {
     const id = crypto.randomUUID()
     setBackgroundBlocks((prev) => [
       ...prev,
-      { id, start: 0, end: clamp(maxIdx, 0, maxIdx), color: '#5a4a3a' },
+      { id, start: 0, end: clamp(maxIdx, 0, maxIdx), color: '#cccccc' },
     ])
   }, [maxIdx])
 
@@ -364,9 +364,9 @@ export default function App() {
 
   const addSectionTitle = useCallback(() => {
     const id = crypto.randomUUID()
-    const after = lineCount > 0 ? 0 : -1
-    setInsertedTitles((prev) => [...prev, { id, text: '', afterIndex: after }])
-  }, [lineCount])
+    // 默认插在文首（-1），新加的标题立即显示在预览最上方，避免「看起来没生效」
+    setInsertedTitles((prev) => [...prev, { id, text: '', afterIndex: -1 }])
+  }, [])
 
   const updateSectionTitle = useCallback((id: string, patch: Partial<InsertedTitle>) => {
     setInsertedTitles((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
@@ -429,50 +429,48 @@ export default function App() {
       )
       const linesOut = applyDisplayNamesToLines(lines as ParsedLine[], charDisplayNames)
 
-      const res = await fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titleStyle: {
-            fontSizePt: titleStyle.fontSizePt,
-            align: titleStyle.align,
-            border: titleStyle.border,
-          },
-          insertedTitles: titlePayload,
-          appearance: {
-            bodyFont: bodyPreset.docxName,
-            speakerFont: SPEAKER_FONT_PRESET.docxName,
-            bodyFontSizePt: bodyFontSizePtClamped,
-            charColors: charColorsExport,
-          },
-          lines: linesOut,
-          charMap: charMapOut,
-          backgroundBlocks: blocks,
-          hiddenLineIndices: [...hiddenLineIndices].sort((a, b) => a - b),
-          pageLayout: {
-            marginTopMm: docxPageLayout.marginTopMm,
-            marginBottomMm: docxPageLayout.marginBottomMm,
-            marginLeftMm: docxPageLayout.marginLeftMm,
-            marginRightMm: docxPageLayout.marginRightMm,
-            lineSpacingMultiple: docxPageLayout.lineSpacingMultiple,
-          },
-          parensSpeechRightAlign,
-        }),
+      // 按需加载 docx 生成模块，避免把库打进首屏主包
+      const { buildDocxBlob } = await import('./docxExport')
+      const blob = await buildDocxBlob({
+        titleStyle: {
+          fontSizePt: titleStyle.fontSizePt,
+          align: titleStyle.align,
+          border: titleStyle.border,
+        },
+        insertedTitles: titlePayload,
+        appearance: {
+          bodyFont: bodyPreset.docxName,
+          speakerFont: getFontPresetById(speakerFontId).docxName,
+          bodyFontSizePt: bodyFontSizePtClamped,
+          diceFont: getFontPresetById(diceFontId).docxName,
+          diceFontSizePt: diceFontSizePtClamped,
+          diceColor: diceColorSafe,
+          charColors: charColorsExport,
+        },
+        lines: linesOut,
+        charMap: charMapOut,
+        backgroundBlocks: blocks,
+        hiddenLineIndices: [...hiddenLineIndices].sort((a, b) => a - b),
+        pageLayout: {
+          marginTopMm: docxPageLayout.marginTopMm,
+          marginBottomMm: docxPageLayout.marginBottomMm,
+          marginLeftMm: docxPageLayout.marginLeftMm,
+          marginRightMm: docxPageLayout.marginRightMm,
+          lineSpacingMultiple: docxPageLayout.lineSpacingMultiple,
+        },
+        parensSpeechRightAlign,
+        speakerBrackets,
       })
-      if (!res.ok) {
-        const t = await res.text()
-        throw new Error(t || res.statusText)
-      }
-      const blob = await res.blob()
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
       const firstTitle = insertedTitles.find((t) => t.text.trim())?.text.trim()
-      a.download = (firstTitle || '跑团log') + '.docx'
+      const customName = exportFileName.trim().replace(/\.docx$/i, '')
+      a.download = (customName || firstTitle || '跑团log') + '.docx'
       a.click()
       URL.revokeObjectURL(a.href)
     } catch (err) {
       console.error(err)
-      alert(err instanceof Error ? err.message : '导出失败，请确认已启动后端 (uvicorn)')
+      alert(err instanceof Error ? err.message : '导出失败')
     } finally {
       setExporting(false)
     }
@@ -484,10 +482,16 @@ export default function App() {
     charDisplayNames,
     charMap,
     docxPageLayout,
+    diceColorSafe,
+    diceFontId,
+    diceFontSizePtClamped,
+    exportFileName,
     hiddenLineIndices,
     insertedTitles,
     lines,
     parensSpeechRightAlign,
+    speakerBrackets,
+    speakerFontId,
     titleStyle,
   ])
 
@@ -513,8 +517,18 @@ export default function App() {
       setTitleStyle,
       bodyFontId,
       setBodyFontId,
+      speakerFontId,
+      setSpeakerFontId,
+      speakerBrackets,
+      setSpeakerBrackets,
       bodyFontSizePt,
       setBodyFontSizePt,
+      diceFontId,
+      setDiceFontId,
+      diceFontSizePt,
+      setDiceFontSizePt,
+      diceColor: diceColorSafe,
+      setDiceColor,
       charOrder,
       charMap,
       charColorOverrides,
@@ -545,6 +559,8 @@ export default function App() {
       setDocxPageLayout,
       parensSpeechRightAlign,
       setParensSpeechRightAlign,
+      exportFileName,
+      setExportFileName,
       fileRef,
       onPickFile,
       loadSample,
@@ -563,8 +579,13 @@ export default function App() {
       removeSectionTitle,
       titleStyle,
       bodyFontId,
+      speakerFontId,
+      speakerBrackets,
       bodyFontSizePt,
       setBodyFontSizePt,
+      diceFontId,
+      diceFontSizePt,
+      diceColorSafe,
       charOrder,
       charMap,
       charColorOverrides,
@@ -592,6 +613,7 @@ export default function App() {
       downloadDocx,
       docxPageLayout,
       parensSpeechRightAlign,
+      exportFileName,
       onPickFile,
       loadSample,
     ],
@@ -704,7 +726,12 @@ export default function App() {
                 charMap={charMap}
                 charColorOverrides={charColorOverrides}
                 bodyFontCss={bodyFontCss}
+                speakerFontCss={speakerFontCss}
+                speakerBrackets={speakerBrackets}
                 bodyFontSizePt={bodyFontSizePtClamped}
+                diceFontCss={diceFontCss}
+                diceFontSizePt={diceFontSizePtClamped}
+                diceColor={diceColorSafe}
                 titleStyle={titleStyle}
                 insertedTitles={insertedTitles}
                 backgroundBlocks={backgroundBlocks}
